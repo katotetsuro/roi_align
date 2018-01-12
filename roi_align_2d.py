@@ -6,7 +6,7 @@ import numpy
 import six
 
 from chainer import cuda
-from chainer import FunctionNode 
+from chainer import function_node
 from chainer.utils import type_check
 
 
@@ -20,7 +20,7 @@ def _roi_pooling_slice(size, stride, max_size, roi_offset):
     return slice(start, end), end - start
 
 
-class ROIAlign2D(FunctionNode):
+class ROIAlign2D(function_node.FunctionNode):
 
     """RoI align over a set of 2d planes."""
 
@@ -318,4 +318,4 @@ def roi_align_2d(x, rois, outh, outw, spatial_scale):
     `Fast R-CNN <https://arxiv.org/abs/1504.08083>`_.
 
     """
-    return ROIAlign2D(outh, outw, spatial_scale)(x, rois)
+    return ROIAlign2D(outh, outw, spatial_scale).apply((x, rois))

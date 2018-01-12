@@ -6,6 +6,7 @@ import numpy
 import six
 
 from chainer import cuda
+from chainer import function
 from chainer import function_node
 from chainer.utils import type_check
 
@@ -20,7 +21,7 @@ def _roi_pooling_slice(size, stride, max_size, roi_offset):
     return slice(start, end), end - start
 
 
-class ROIAlign2D(function_node.FunctionNode):
+class ROIAlign2D(function.Function):
 
     """RoI align over a set of 2d planes."""
 
@@ -41,7 +42,6 @@ class ROIAlign2D(function_node.FunctionNode):
         )
 
     def forward_cpu(self, inputs):
-        self.retain_inputs((1,))
         self._bottom_data_shape = inputs[0].shape
 
         bottom_data, bottom_rois = inputs
@@ -197,10 +197,9 @@ class ROIAlign2D(function_node.FunctionNode):
             stridew = float(roi_width) / float(self.outw)
 
             #gyの各成分に対して、対応する4近傍点にgradを加算する
-            c, rows, cols = gy[0].shape
-            assert gy[0].shape == self.center_data.shape
-            for y in rows:
-                for x in cols:
+            _, c, rows, cols = gy[0].shape
+            for y in range(rows):
+                for x in range(cols):
                     cy, cx = self.center_data[i_roi, :, y, x]
                     x00 = numpy.array((cy, cx), dtype=numpy.int32)
                     p, q = numpy.array((cy, cx)) - x00
@@ -326,4 +325,4 @@ def roi_align_2d(x, rois, outh, outw, spatial_scale):
     `Fast R-CNN <https://arxiv.org/abs/1504.08083>`_.
 
     """
-    return ROIAlign2D(outh, outw, spatial_scale).apply((x, rois))[0]
+    return ROIAlign2D(outh, outw, spatial_scale)(x, rois)

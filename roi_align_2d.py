@@ -51,8 +51,9 @@ class ROIAlign2D(function.Function):
         # returned without having some of its values updated.
         top_data = numpy.zeros((n_rois, channels, self.outh, self.outw),
                                dtype=numpy.float32)
-        # store center (x, y) of each bins, floating point
-        self.center_data = numpy.zeros((n_rois, 2, self.outh, self.outw), numpy.float32)
+        # 各ビンを計算するのに使ったfeature mapの座標(x,y)の配列
+        self.center_data = numpy.zeros((n_rois, 4, 2, self.outh, self.outw), numpy.int32)
+        self.weights = numpy.zeros((n_rois, 2, self.outh, self.outw), numpy.float32)
 
         for i_roi in six.moves.range(n_rois):
             idx, xmin, ymin, xmax, ymax = bottom_rois[i_roi]
@@ -97,7 +98,8 @@ class ROIAlign2D(function.Function):
                                 + bottom_data[int(idx), :, x01[0], x01[1]] * (1-p) * q \
                                 + bottom_data[int(idx), :, x11[0], x11[1]] * p * q 
                     top_data[i_roi, :, outh, outw] = roi_data
-                    self.center_data[i_roi, :, outh, outw] = [cx, cy]
+                    self.center_data[i_roi,:, :, outh, outw] = numpy.vstack((x00, x10, x01, x11))
+                    self.weights[i_roi, :, outh, outw] = numpy.array((p,q))
         return top_data,
 
     def forward_gpu(self, inputs):
@@ -200,13 +202,8 @@ class ROIAlign2D(function.Function):
             _, c, rows, cols = gy[0].shape
             for y in range(rows):
                 for x in range(cols):
-                    cy, cx = self.center_data[i_roi, :, y, x]
-                    x00 = numpy.array((cy, cx), dtype=numpy.int32)
-                    p, q = numpy.array((cy, cx)) - x00
-                    bound = (height-1, width-1)
-                    x10 = numpy.maximum(x00 + (1,0), bound)
-                    x01 = numpy.maximum(x00 + (0, 1), bound)
-                    x11 = numpy.maximum(x00 + (1, 1), bound) 
+                    x00, x10, x01, x11 = self.center_data[i_roi, :, :, y, x]
+                    p, q = self.weights[i_roi, :, y, x]
                     bottom_delta[idx, :, x00[0], x00[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
                     bottom_delta[idx, :, x10[0], x10[1]] += p*(1-q) * gy[0][i_roi, :, y, x]
                     bottom_delta[idx, :, x01[0], x01[1]] += (1-p)*q * gy[0][i_roi, :, y, x]

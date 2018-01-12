@@ -51,8 +51,8 @@ class ROIAlign2D(function_node.FunctionNode):
         # returned without having some of its values updated.
         top_data = numpy.zeros((n_rois, channels, self.outh, self.outw),
                                dtype=numpy.float32)
-        # store center (x, y) of each bins
-        self.argmax_data = numpy.zeros((n_rois, channels, channels, self.outh, self.outw), numpy.float32)
+        # store center (x, y) of each bins, floating point
+        self.center_data = numpy.zeros((n_rois, 2, self.outh, self.outw), numpy.float32)
 
         for i_roi in six.moves.range(n_rois):
             idx, xmin, ymin, xmax, ymax = bottom_rois[i_roi]
@@ -65,28 +65,39 @@ class ROIAlign2D(function_node.FunctionNode):
             strideh = 1. * roi_height / self.outh
             stridew = 1. * roi_width / self.outw
 
-            for outh in six.moves.range(self.outh):
-                sliceh, lenh = _roi_pooling_slice(
-                    outh, strideh, height, ymin)
-                if sliceh.stop <= sliceh.start:
-                    continue
-                for outw in six.moves.range(self.outw):
-                    slicew, lenw = _roi_pooling_slice(
-                        outw, stridew, width, xmin)
-                    if slicew.stop <= slicew.start:
-                        continue
-                    roi_data = bottom_data[int(idx), :, sliceh, slicew]\
-                        .reshape(channels, -1)
-                    top_data[i_roi, :, outh, outw] =\
-                        numpy.max(roi_data, axis=1)
+            #center_y = np.indices((self.outh, self.outw))
+            #center_y = (center_y + 0.5) * strideh + ymin
+            #center_x = (center_x + 0.5) * stridew + xmin
+            #centers = np.array((center_y, center_x))
+            #self.center_data[i_roi, :] = centers
 
-                    # get the max idx respect to feature_maps coordinates
-                    max_idx_slice = numpy.unravel_index(
-                        numpy.argmax(roi_data, axis=1), (lenh, lenw))
-                    max_idx_slice_h = max_idx_slice[0] + sliceh.start
-                    max_idx_slice_w = max_idx_slice[1] + slicew.start
-                    max_idx_slice = max_idx_slice_h * width + max_idx_slice_w
-                    self.argmax_data[i_roi, :, outh, outw] = max_idx_slice
+            #x00 = np.floor(centers).astype(np.int32)
+            #p, q = centers - x00
+            #x00[i_roi, 0, :, :
+            
+            
+            for outh in six.moves.range(self.outh):
+                for outw in six.moves.range(self.outw):
+
+                    cy = (outh + 0.5) * strideh + ymin
+                    cx = (outw + 0.5) * stridew + xmin
+
+                    # adjacents_, (0,0),(0,1),(1,0),(1,1)的なもの
+                    # weights (1-p)*(1-q), (1-p)*q, p*(1-q), p*q 的なもの
+                    # だけどこの内積はけっこうちゃんと考えないとやばいな
+                    x00 = numpy.array((cy, cx), dtype=numpy.int32)
+                    p, q = numpy.array((cy, cx)) - x00
+                    bound = (height-1, width-1)
+                    x10 = numpy.maximum(x00 + (1,0), bound)
+                    x01 = numpy.maximum(x00 + (0, 1), bound)
+                    x11 = numpy.maximum(x00 + (1, 1), bound) 
+
+                    roi_data = bottom_data[int(idx), :, x00[0], x00[1]] * (1-p)*(1-q) \
+                                + bottom_data[int(idx), :, x10[0], x10[1]] * p * (1-q) \
+                                + bottom_data[int(idx), :, x01[0], x01[1]] * (1-p) * q \
+                                + bottom_data[int(idx), :, x11[0], x11[1]] * p * q 
+                    top_data[i_roi, :, outh, outw] = roi_data
+                    self.center_data[i_roi, :, outh, outw] = [cx, cy]
         return top_data,
 
     def forward_gpu(self, inputs):
@@ -175,36 +186,33 @@ class ROIAlign2D(function_node.FunctionNode):
         for i_roi in six.moves.range(n_rois):
             idx, xmin, ymin, xmax, ymax = bottom_rois[i_roi]
             idx = int(idx)
-            xmin = int(round(xmin * self.spatial_scale))
-            xmax = int(round(xmax * self.spatial_scale))
-            ymin = int(round(ymin * self.spatial_scale))
-            ymax = int(round(ymax * self.spatial_scale))
+            xmin = xmin * self.spatial_scale
+            xmax = xmax * self.spatial_scale
+            ymin = ymin * self.spatial_scale
+            ymax = ymax * self.spatial_scale
             roi_width = max(xmax - xmin + 1, 1)
             roi_height = max(ymax - ymin + 1, 1)
 
             strideh = float(roi_height) / float(self.outh)
             stridew = float(roi_width) / float(self.outw)
 
-            # iterate all the w, h (from feature map) that fall into this ROIs
-            for w in six.moves.range(xmin, xmax + 1):
-                for h in six.moves.range(ymin, ymax + 1):
-                    phstart = int(numpy.floor(float(h - ymin) / strideh))
-                    phend = int(numpy.ceil(float(h - ymin + 1) / strideh))
-                    pwstart = int(numpy.floor(float(w - xmin) / stridew))
-                    pwend = int(numpy.ceil(float(w - xmin + 1) / stridew))
+            #gyの各成分に対して、対応する4近傍点にgradを加算する
+            c, rows, cols = gy[0].shape
+            assert gy[0].shape == self.center_data.shape
+            for y in rows:
+                for x in cols:
+                    cy, cx = self.center_data[i_roi, :, y, x]
+                    x00 = numpy.array((cy, cx), dtype=numpy.int32)
+                    p, q = numpy.array((cy, cx)) - x00
+                    bound = (height-1, width-1)
+                    x10 = numpy.maximum(x00 + (1,0), bound)
+                    x01 = numpy.maximum(x00 + (0, 1), bound)
+                    x11 = numpy.maximum(x00 + (1, 1), bound) 
+                    bottom_delta[idx, :, x00[0], x00[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x10[0], x10[1]] += p*(1-q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x01[0], x01[1]] += (1-p)*q * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x11[0], x11[1]] += p*q * gy[0][i_roi, :, y, x]
 
-                    phstart = min(max(phstart, 0), self.outh)
-                    phend = min(max(phend, 0), self.outh)
-                    pwstart = min(max(pwstart, 0), self.outw)
-                    pwend = min(max(pwend, 0), self.outw)
-
-                    for ph in six.moves.range(phstart, phend):
-                        for pw in six.moves.range(pwstart, pwend):
-                            max_idx_tmp = self.argmax_data[i_roi, :, ph, pw]
-                            for c in six.moves.range(channels):
-                                if max_idx_tmp[c] == (h * width + w):
-                                    bottom_delta[idx, c, h, w] += \
-                                        gy[0][i_roi, c, ph, pw]
         return bottom_delta, None
 
     def backward_gpu(self, inputs, gy):
@@ -318,4 +326,4 @@ def roi_align_2d(x, rois, outh, outw, spatial_scale):
     `Fast R-CNN <https://arxiv.org/abs/1504.08083>`_.
 
     """
-    return ROIAlign2D(outh, outw, spatial_scale).apply((x, rois))
+    return ROIAlign2D(outh, outw, spatial_scale).apply((x, rois))[0]

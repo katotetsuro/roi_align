@@ -74,7 +74,7 @@ class TestROIAlign2D(unittest.TestCase):
         gradient_check.check_backward(
             ROIAlign2D(outh=self.outh,
                                    outw=self.outw,
-                                   spatial_scale=self.spatial_scale),
+                                   spatial_scale=self.spatial_scale).apply,
             (x_data, roi_data), y_grad, no_grads=[False, True],
             **self.check_backward_options)
 

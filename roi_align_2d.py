@@ -103,8 +103,8 @@ class ROIAlign2D(function.Function):
         return top_data,
 
     def forward_gpu(self, inputs):
-        # ROIの情報だけは取っておく
-        self.retain_inputs((1,))
+        # ROIの情報だけは取っておく -> backwardのinputsに来るからいらないのか？
+        #self.retain_inputs((1,))
 
         self._bottom_data_shape = inputs[0].shape
         bottom_data, bottom_rois = inputs
@@ -215,7 +215,7 @@ class ROIAlign2D(function.Function):
         bottom_diff = cuda.cupy.zeros(self._bottom_data_shape, numpy.float32)
         cuda.cupy.ElementwiseKernel(
             '''
-            raw float32 top_diff, raw int32 argmax_data, int32 num_rois,
+            raw float32 top_diff, int32 num_rois,
             float32 spatial_scale, int32 channels, int32 height, int32 width,
             int32 pooled_height, int32 pooled_width, raw float32 bottom_rois
             ''',
@@ -227,20 +227,24 @@ class ROIAlign2D(function.Function):
             int num = i / (width * height * channels);
 
             float gradient = 0;
-            // Accumulate gradient over all ROIs that pooled this element
+            // feature map上のある1ピクセルに伝播するgradを計算する、のがこのカーネルの目的
+            // 各roi、各ビンに対して、もしこのカーネルが担当するfeature map上のピクセルが関与していた場合、
+            // gradを加算する
             for (int roi_n = 0; roi_n < num_rois; ++roi_n) {
+                
                 // Skip if ROI's batch index doesn't match num
                 if (num != static_cast<int>(bottom_rois[roi_n * 5])) {
                     continue;
                 }
 
-                int roi_start_w = round(bottom_rois[roi_n * 5 + 1]
+                // float精度でのfeature map上のROIの開始位置、終了位置
+                float roi_start_w = round(bottom_rois[roi_n * 5 + 1]
                                         * spatial_scale);
-                int roi_start_h = round(bottom_rois[roi_n * 5 + 2]
+                float roi_start_h = round(bottom_rois[roi_n * 5 + 2]
                                         * spatial_scale);
-                int roi_end_w = round(bottom_rois[roi_n * 5 + 3]
+                float roi_end_w = round(bottom_rois[roi_n * 5 + 3]
                                       * spatial_scale);
-                int roi_end_h = round(bottom_rois[roi_n * 5 + 4]
+                float roi_end_h = round(bottom_rois[roi_n * 5 + 4]
                                       * spatial_scale);
 
                 // Skip if ROI doesn't include (h, w)
@@ -265,32 +269,35 @@ class ROIAlign2D(function.Function):
                 float bin_size_w = static_cast<float>(roi_width)
                                / static_cast<float>(pooled_width);
 
-                int phstart = floor(static_cast<float>(h - roi_start_h)
-                                    / bin_size_h);
-                int phend = ceil(static_cast<float>(h - roi_start_h + 1)
-                                 / bin_size_h);
-                int pwstart = floor(static_cast<float>(w - roi_start_w)
-                                    / bin_size_w);
-                int pwend = ceil(static_cast<float>(w - roi_start_w + 1)
-                                 / bin_size_w);
-
-                phstart = min(max(phstart, 0), pooled_height);
-                phend = min(max(phend, 0), pooled_height);
-                pwstart = min(max(pwstart, 0), pooled_width);
-                pwend = min(max(pwend, 0), pooled_width);
-
-                for (int ph = phstart; ph < phend; ++ph) {
-                    for (int pw = pwstart; pw < pwend; ++pw) {
-                        int index_ = ph * pooled_width + pw + offset;
-                        if (argmax_data[index_] == (h * width + w)) {
-                            gradient += top_diff[index_];
+                // 各ビンに対して、feature map上のfloat精度のy, xを得る
+                for (int row=0; row<pooled_height; ++row) {
+                    for (int col=0; col<pooled_width; ++col) {
+                        float cx = (col + 0.5) * bin_size_w + roi_start_w;
+                        float cy = (row + 0.5) * bin_size_h + roi_start_h;
+                        // これを計算するために使った4近傍点に対して、gradを加算する
+                        int p = cy - floor(cy);
+                        int q = cx - floor(cx);
+                        int x0 = max(min(floor(cx), width-1), 0);
+                        int y0 = max(min(floor(cy), height-1), 0);
+                        int x1 = max(min(floor(cx)+1, width-1), 0);
+                        int y1 = max(min(floor(cy)+1, height-1), 0);
+                        float g = top_diff[offset + row*pooled_width + col]
+                        if (x0 == w && y0 == h) {
+                            gradient += (1-p)*(1-q) * g;
                         }
-                    }
-                }
+                        if (x1 == w && y0 == h) {
+                            gradient += (1-p)*q * g;
+                        }
+                        if (x0 == w && y1 == h) {
+                            gradient += p*(1-q) * g;
+                        }
+                        if (x1 == w && y1 == h) {
+                            gradient += p * q * g;
+                        }
             }
             bottom_diff = gradient;
             ''', 'roi_align_2d_bwd'
-        )(gy[0], self.argmax_data, bottom_rois.shape[0], self.spatial_scale,
+        )(gy[0], bottom_rois.shape[0], self.spatial_scale,
           channels, height, width, self.outh, self.outw,
           bottom_rois, bottom_diff)
 

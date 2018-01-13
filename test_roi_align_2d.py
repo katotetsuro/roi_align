@@ -49,26 +49,26 @@ class TestROIAlign2D(unittest.TestCase):
     def test_forward_cpu(self):
         self.check_forward(self.x, self.rois)
 
-#    @attr.gpu
-#    def test_forward_gpu(self):
-#        self.check_forward(cuda.to_gpu(self.x), cuda.to_gpu(self.rois))
-#
-#    @attr.gpu
-#    def test_forward_cpu_gpu_equal(self):
-#        # cpu
-#        x_cpu = chainer.Variable(self.x)
-#        rois_cpu = chainer.Variable(self.rois)
-#        y_cpu = roi_align_2d(
-#            x_cpu, rois_cpu, outh=self.outh, outw=self.outw,
-#            spatial_scale=self.spatial_scale)
-#
-#        # gpu
-#        x_gpu = chainer.Variable(cuda.to_gpu(self.x))
-#        rois_gpu = chainer.Variable(cuda.to_gpu(self.rois))
-#        y_gpu = roi_align_2d(
-#            x_gpu, rois_gpu, outh=self.outh, outw=self.outw,
-#            spatial_scale=self.spatial_scale)
-#        testing.assert_allclose(y_cpu.data, cuda.to_cpu(y_gpu.data))
+    @attr.gpu
+    def test_forward_gpu(self):
+        self.check_forward(cuda.to_gpu(self.x), cuda.to_gpu(self.rois))
+
+    @attr.gpu
+    def test_forward_cpu_gpu_equal(self):
+        # cpu
+        x_cpu = chainer.Variable(self.x)
+        rois_cpu = chainer.Variable(self.rois)
+        y_cpu = roi_align_2d(
+            x_cpu, rois_cpu, outh=self.outh, outw=self.outw,
+            spatial_scale=self.spatial_scale)
+
+        # gpu
+        x_gpu = chainer.Variable(cuda.to_gpu(self.x))
+        rois_gpu = chainer.Variable(cuda.to_gpu(self.rois))
+        y_gpu = roi_align_2d(
+            x_gpu, rois_gpu, outh=self.outh, outw=self.outw,
+            spatial_scale=self.spatial_scale)
+        testing.assert_allclose(y_cpu.data, cuda.to_cpu(y_gpu.data))
 
     def check_backward(self, x_data, roi_data, y_grad):
         gradient_check.check_backward(
@@ -81,10 +81,10 @@ class TestROIAlign2D(unittest.TestCase):
     def test_backward_cpu(self):
         self.check_backward(self.x, self.rois, self.gy)
 
-#    @attr.gpu
-#    def test_backward_gpu(self):
-#        self.check_backward(cuda.to_gpu(self.x), cuda.to_gpu(self.rois),
-#                            cuda.to_gpu(self.gy))
+    @attr.gpu
+    def test_backward_gpu(self):
+        self.check_backward(cuda.to_gpu(self.x), cuda.to_gpu(self.rois),
+                            cuda.to_gpu(self.gy))
 
 
 testing.run_module(__name__, __file__)

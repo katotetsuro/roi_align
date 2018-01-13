@@ -103,22 +103,30 @@ class ROIAlign2D(function.Function):
         return top_data,
 
     def forward_gpu(self, inputs):
+        # ROIの情報だけは取っておく
         self.retain_inputs((1,))
-        self._bottom_data_shape = inputs[0].shape
 
+        self._bottom_data_shape = inputs[0].shape
         bottom_data, bottom_rois = inputs
         channels, height, width = bottom_data.shape[1:]
         n_rois = bottom_rois.shape[0]
         top_data = cuda.cupy.empty((n_rois, channels, self.outh,
                                     self.outw), dtype=numpy.float32)
         self.argmax_data = cuda.cupy.empty(top_data.shape, numpy.int32)
+        # 各ビンを計算するのに使ったfeature mapの座標(x,y)の配列
+        self.x00 = cuda.cupy.zeros(top_data.shape, dtype=numpy.int32)
+        self.x10 = cuda.cupy.zeros_like(self.x00)
+        self.x01 = cuda.cupy.zeros_like(self.x00)
+        self.x11 = cuda.cupy.zeros_like(self.x00)
+        self.p = cuda.cupy.zeros(top_data.shape, dtype=numpy.float32)
+        self.q = cuda.cupy.zeros(top_data.shape, dtype=numpy.float32)
         cuda.cupy.ElementwiseKernel(
             '''
             raw float32 bottom_data, float32 spatial_scale, int32 channels,
             int32 height, int32 width, int32 pooled_height, int32 pooled_width,
             raw float32 bottom_rois
             ''',
-            'float32 top_data, int32 argmax_data',
+            'float32 top_data',
             '''
             // pos in output filter
             int pw = i % pooled_width;
@@ -127,55 +135,45 @@ class ROIAlign2D(function.Function):
             int num = i / pooled_width / pooled_height / channels;
 
             int roi_batch_ind = bottom_rois[num * 5 + 0];
-            int roi_start_w = round(bottom_rois[num * 5 + 1] * spatial_scale);
-            int roi_start_h = round(bottom_rois[num * 5 + 2] * spatial_scale);
-            int roi_end_w = round(bottom_rois[num * 5 + 3] * spatial_scale);
-            int roi_end_h = round(bottom_rois[num * 5 + 4] * spatial_scale);
+            float roi_start_w = bottom_rois[num * 5 + 1] * spatial_scale;
+            float roi_start_h = bottom_rois[num * 5 + 2] * spatial_scale;
+            float roi_end_w = bottom_rois[num * 5 + 3] * spatial_scale;
+            float roi_end_h = bottom_rois[num * 5 + 4] * spatial_scale;
 
             // Force malformed ROIs to be 1x1
-            int roi_width = max(roi_end_w - roi_start_w + 1, 1);
-            int roi_height = max(roi_end_h - roi_start_h + 1, 1);
+            float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
+            float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
             float bin_size_h = static_cast<float>(roi_height)
                            / static_cast<float>(pooled_height);
             float bin_size_w = static_cast<float>(roi_width)
                            / static_cast<float>(pooled_width);
 
-            int hstart = static_cast<int>(floor(static_cast<float>(ph)
-                                          * bin_size_h));
-            int wstart = static_cast<int>(floor(static_cast<float>(pw)
-                                          * bin_size_w));
-            int hend = static_cast<int>(ceil(static_cast<float>(ph + 1)
-                                        * bin_size_h));
-            int wend = static_cast<int>(ceil(static_cast<float>(pw + 1)
-                                        * bin_size_w));
+            // binのインデックスph,pwからfeature map上の座標cy, cxへ
+            float cy = (ph + 0.5) * bin_size_h + roi_start_h
+            float cx = (pw + 0.5) * bin_size_w + roi_start_w
 
-            // Add roi offsets and clip to input boundaries
-            hstart = min(max(hstart + roi_start_h, 0), height);
-            hend = min(max(hend + roi_start_h, 0), height);
-            wstart = min(max(wstart + roi_start_w, 0), width);
-            wend = min(max(wend + roi_start_w, 0), width);
-            bool is_empty = (hend <= hstart) || (wend <= wstart);
+            float p = cy - floor(cy)
+            float q = cx - floor(cx)
 
-            // Define an empty pooling region to be zero
-            float maxval = is_empty ? 0 : -1E+37;
-            // If nothing is pooled, argmax=-1 causes nothing to be backprop'd
-            int maxidx = -1;
+            int x00_y = floor(cy)
+            int x00_x = floor(cx)
+            int x10_y = min(x00_y + 1, height-1)
+            int x10_x = min(x00_x + 0, width-1)
+            int x01_y = min(x00_y + 0, height-1)
+            int x01_x = min(x00_x + 1, width-1)
+            int x11_y = min(x00_y + 1, height-1)
+            int x11_x = min(x00_x + 1, width-1)
+
+            // このカーネルが処理するチャンネルへのオフセット
             int data_offset = (roi_batch_ind * channels + c) * height * width;
-            for (int h = hstart; h < hend; ++h) {
-                for (int w = wstart; w < wend; ++w) {
-                    int bottom_index = h * width + w;
-                    if (bottom_data[data_offset + bottom_index] > maxval) {
-                        maxval = bottom_data[data_offset + bottom_index];
-                        maxidx = bottom_index;
-                    }
-                }
-            }
-            top_data = maxval;
-            argmax_data = maxidx;
-            ''', 'roi_pooling_2d_fwd'
+            float val = bottom_data[data_offset + x00_y * width + x00_x] * (1-p) * (1-q)
+            val += bottom_data[data_offset + x10_y * width + x10_x] * p * (1-q)
+            val += bottom_data[data_offset + x01_y * width + x01_x] * (1-p) * q
+            val += bottom_data[data_offset + x11_y * width + x11_x] * p * q
+            top_data = val;
+            ''', 'roi_align_2d_fwd'
         )(bottom_data, self.spatial_scale, channels, height, width,
-          self.outh, self.outw, bottom_rois, top_data,
-          self.argmax_data)
+          self.outh, self.outw, bottom_rois, top_data)
 
         return top_data,
 
@@ -291,7 +289,7 @@ class ROIAlign2D(function.Function):
                 }
             }
             bottom_diff = gradient;
-            ''', 'roi_pooling_2d_bwd'
+            ''', 'roi_align_2d_bwd'
         )(gy[0], self.argmax_data, bottom_rois.shape[0], self.spatial_scale,
           channels, height, width, self.outh, self.outw,
           bottom_rois, bottom_diff)

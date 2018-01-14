@@ -112,14 +112,6 @@ class ROIAlign2D(function.Function):
         n_rois = bottom_rois.shape[0]
         top_data = cuda.cupy.empty((n_rois, channels, self.outh,
                                     self.outw), dtype=numpy.float32)
-        self.argmax_data = cuda.cupy.empty(top_data.shape, numpy.int32)
-        # 各ビンを計算するのに使ったfeature mapの座標(x,y)の配列
-        self.x00 = cuda.cupy.zeros(top_data.shape, dtype=numpy.int32)
-        self.x10 = cuda.cupy.zeros_like(self.x00)
-        self.x01 = cuda.cupy.zeros_like(self.x00)
-        self.x11 = cuda.cupy.zeros_like(self.x00)
-        self.p = cuda.cupy.zeros(top_data.shape, dtype=numpy.float32)
-        self.q = cuda.cupy.zeros(top_data.shape, dtype=numpy.float32)
         cuda.cupy.ElementwiseKernel(
             '''
             raw float32 bottom_data, float32 spatial_scale, int32 channels,
@@ -149,27 +141,27 @@ class ROIAlign2D(function.Function):
                            / static_cast<float>(pooled_width);
 
             // binのインデックスph,pwからfeature map上の座標cy, cxへ
-            float cy = (ph + 0.5) * bin_size_h + roi_start_h
-            float cx = (pw + 0.5) * bin_size_w + roi_start_w
+            float cy = (ph + 0.5) * bin_size_h + roi_start_h;
+            float cx = (pw + 0.5) * bin_size_w + roi_start_w;
 
-            float p = cy - floor(cy)
-            float q = cx - floor(cx)
+            float p = cy - floor(cy);
+            float q = cx - floor(cx);
 
-            int x00_y = floor(cy)
-            int x00_x = floor(cx)
-            int x10_y = min(x00_y + 1, height-1)
-            int x10_x = min(x00_x + 0, width-1)
-            int x01_y = min(x00_y + 0, height-1)
-            int x01_x = min(x00_x + 1, width-1)
-            int x11_y = min(x00_y + 1, height-1)
-            int x11_x = min(x00_x + 1, width-1)
+            int x00_y = floor(cy);
+            int x00_x = floor(cx);
+            int x10_y = min(x00_y + 1, height-1);
+            int x10_x = min(x00_x + 0, width-1);
+            int x01_y = min(x00_y + 0, height-1);
+            int x01_x = min(x00_x + 1, width-1);
+            int x11_y = min(x00_y + 1, height-1);
+            int x11_x = min(x00_x + 1, width-1);
 
             // このカーネルが処理するチャンネルへのオフセット
             int data_offset = (roi_batch_ind * channels + c) * height * width;
-            float val = bottom_data[data_offset + x00_y * width + x00_x] * (1-p) * (1-q)
-            val += bottom_data[data_offset + x10_y * width + x10_x] * p * (1-q)
-            val += bottom_data[data_offset + x01_y * width + x01_x] * (1-p) * q
-            val += bottom_data[data_offset + x11_y * width + x11_x] * p * q
+            float val = bottom_data[data_offset + x00_y * width + x00_x] * (1-p) * (1-q);
+            val += bottom_data[data_offset + x10_y * width + x10_x] * p * (1-q);
+            val += bottom_data[data_offset + x01_y * width + x01_x] * (1-p) * q;
+            val += bottom_data[data_offset + x11_y * width + x11_x] * p * q;
             top_data = val;
             ''', 'roi_align_2d_fwd'
         )(bottom_data, self.spatial_scale, channels, height, width,

@@ -269,10 +269,10 @@ class ROIAlign2D(function.Function):
                         // これを計算するために使った4近傍点に対して、gradを加算する
                         int p = cy - floor(cy);
                         int q = cx - floor(cx);
-                        int x0 = max(min(floor(cx), width-1), 0);
-                        int y0 = max(min(floor(cy), height-1), 0);
-                        int x1 = max(min(floor(cx)+1, width-1), 0);
-                        int y1 = max(min(floor(cy)+1, height-1), 0);
+                        int x0 = max(min(static_cast<int>(floor(cx)), width-1), 0);
+                        int y0 = max(min(static_cast<int>(floor(cy)), height-1), 0);
+                        int x1 = max(min(static_cast<int>(floor(cx))+1, width-1), 0);
+                        int y1 = max(min(static_cast<int>(floor(cy))+1, height-1), 0);
                         float g = top_diff[offset + row*pooled_width + col]
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;
@@ -286,6 +286,8 @@ class ROIAlign2D(function.Function):
                         if (x1 == w && y1 == h) {
                             gradient += p * q * g;
                         }
+                    }
+                }
             }
             bottom_diff = gradient;
             ''', 'roi_align_2d_bwd'

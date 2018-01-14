@@ -230,14 +230,14 @@ class ROIAlign2D(function.Function):
                 }
 
                 // float精度でのfeature map上のROIの開始位置、終了位置
-                float roi_start_w = round(bottom_rois[roi_n * 5 + 1]
-                                        * spatial_scale);
-                float roi_start_h = round(bottom_rois[roi_n * 5 + 2]
-                                        * spatial_scale);
-                float roi_end_w = round(bottom_rois[roi_n * 5 + 3]
-                                      * spatial_scale);
-                float roi_end_h = round(bottom_rois[roi_n * 5 + 4]
-                                      * spatial_scale);
+                float roi_start_w = bottom_rois[roi_n * 5 + 1]
+                                        * spatial_scale;
+                float roi_start_h = bottom_rois[roi_n * 5 + 2]
+                                        * spatial_scale;
+                float roi_end_w = bottom_rois[roi_n * 5 + 3]
+                                      * spatial_scale;
+                float roi_end_h = bottom_rois[roi_n * 5 + 4]
+                                      * spatial_scale;
 
                 // Skip if ROI doesn't include (h, w)
                 const bool in_roi = (w >= roi_start_w && w <= roi_end_w &&

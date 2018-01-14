@@ -253,12 +253,12 @@ class ROIAlign2D(function.Function):
                 // this bottom unit
 
                 // Force malformed ROIs to be 1x1
-                int roi_width = max(static_cast<int>(roi_end_w - roi_start_w) + 1, 1);
-                int roi_height = max(static_cast<int>(roi_end_h - roi_start_h) + 1, 1);
+                float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
+                float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
 
-                float bin_size_h = static_cast<float>(roi_height)
+                float bin_size_h = roi_height
                                / static_cast<float>(pooled_height);
-                float bin_size_w = static_cast<float>(roi_width)
+                float bin_size_w = roi_width
                                / static_cast<float>(pooled_width);
 
                 // 各ビンに対して、feature map上のfloat精度のy, xを得る

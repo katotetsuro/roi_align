@@ -253,8 +253,8 @@ class ROIAlign2D(function.Function):
                 // this bottom unit
 
                 // Force malformed ROIs to be 1x1
-                int roi_width = max(roi_end_w - roi_start_w + 1, 1);
-                int roi_height = max(roi_end_h - roi_start_h + 1, 1);
+                int roi_width = max(static_cast<int>(roi_end_w - roi_start_w) + 1, 1);
+                int roi_height = max(static_cast<int>(roi_end_h - roi_start_h) + 1, 1);
 
                 float bin_size_h = static_cast<float>(roi_height)
                                / static_cast<float>(pooled_height);
@@ -273,7 +273,7 @@ class ROIAlign2D(function.Function):
                         int y0 = max(min(static_cast<int>(floor(cy)), height-1), 0);
                         int x1 = max(min(static_cast<int>(floor(cx))+1, width-1), 0);
                         int y1 = max(min(static_cast<int>(floor(cy))+1, height-1), 0);
-                        float g = top_diff[offset + row*pooled_width + col]
+                        float g = top_diff[offset + row*pooled_width + col];
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;
                         }

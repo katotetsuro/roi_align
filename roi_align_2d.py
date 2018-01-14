@@ -267,8 +267,8 @@ class ROIAlign2D(function.Function):
                         float cx = (col + 0.5) * bin_size_w + roi_start_w;
                         float cy = (row + 0.5) * bin_size_h + roi_start_h;
                         // これを計算するために使った4近傍点に対して、gradを加算する
-                        int p = cy - floor(cy);
-                        int q = cx - floor(cx);
+                        float p = cy - floor(cy);
+                        float q = cx - floor(cx);
                         int x0 = max(min(static_cast<int>(floor(cx)), width-1), 0);
                         int y0 = max(min(static_cast<int>(floor(cy)), height-1), 0);
                         int x1 = max(min(static_cast<int>(floor(cx))+1, width-1), 0);

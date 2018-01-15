@@ -223,13 +223,6 @@ class ROIAlign2D(function.Function):
                 float roi_end_h = bottom_rois[roi_n * 5 + 4]
                                       * spatial_scale;
 
-                // Skip if ROI doesn't include (h, w)
-                const bool in_roi = (w >= roi_start_w && w <= roi_end_w &&
-                                     h >= roi_start_h && h <= roi_end_h);
-                if (!in_roi) {
-                    continue;
-                }
-
                 int offset = (roi_n * channels + c) * pooled_height
                              * pooled_width;
 
@@ -257,6 +250,9 @@ class ROIAlign2D(function.Function):
                         int x1 = max(min(static_cast<int>(floor(cx-0.5))+1, width-1), 0);
                         int y1 = max(min(static_cast<int>(floor(cy-0.5))+1, height-1), 0);
                         float g = top_diff[offset + row*pooled_width + col];
+                        if (i == 9) {
+                            //printf("%d, %d, %d, %d, %d, %d, %f, %f-------------------------", w, h, x0, y0, x1, y1, p, q);
+                        }
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;
                         }

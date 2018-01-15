@@ -11,16 +11,6 @@ from chainer import function_node
 from chainer.utils import type_check
 
 
-def _roi_pooling_slice(size, stride, max_size, roi_offset):
-    start = int(numpy.floor(size * stride))
-    end = int(numpy.ceil((size + 1) * stride))
-
-    start = min(max(start + roi_offset, 0), max_size)
-    end = min(max(end + roi_offset, 0), max_size)
-
-    return slice(start, end), end - start
-
-
 class ROIAlign2D(function.Function):
 
     """RoI align over a set of 2d planes."""
@@ -75,8 +65,8 @@ class ROIAlign2D(function.Function):
             #x00 = np.floor(centers).astype(np.int32)
             #p, q = centers - x00
             #x00[i_roi, 0, :, :
-            
-            
+
+
             for outh in six.moves.range(self.outh):
                 for outw in six.moves.range(self.outw):
 
@@ -91,12 +81,12 @@ class ROIAlign2D(function.Function):
                     bound = (height-1, width-1)
                     x10 = numpy.maximum(x00 + (1,0), bound)
                     x01 = numpy.maximum(x00 + (0, 1), bound)
-                    x11 = numpy.maximum(x00 + (1, 1), bound) 
+                    x11 = numpy.maximum(x00 + (1, 1), bound)
 
                     roi_data = bottom_data[int(idx), :, x00[0], x00[1]] * (1-p)*(1-q) \
                                 + bottom_data[int(idx), :, x10[0], x10[1]] * p * (1-q) \
                                 + bottom_data[int(idx), :, x01[0], x01[1]] * (1-p) * q \
-                                + bottom_data[int(idx), :, x11[0], x11[1]] * p * q 
+                                + bottom_data[int(idx), :, x11[0], x11[1]] * p * q
                     top_data[i_roi, :, outh, outw] = roi_data
                     self.center_data[i_roi,:, :, outh, outw] = numpy.vstack((x00, x10, x01, x11))
                     self.weights[i_roi, :, outh, outw] = numpy.array((p,q))
@@ -132,19 +122,23 @@ class ROIAlign2D(function.Function):
             float roi_end_w = bottom_rois[num * 5 + 3] * spatial_scale;
             float roi_end_h = bottom_rois[num * 5 + 4] * spatial_scale;
 
-            float roi_width = roi_end_w - roi_start_w;
-            float roi_height = roi_end_h - roi_start_h;
+            float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
+            float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
             float bin_size_h = roi_height
                            / static_cast<float>(pooled_height);
             float bin_size_w = roi_width
                            / static_cast<float>(pooled_width);
 
             // binのインデックスph,pwからfeature map上の座標cy, cxへ
+            // 更にいうと、cy,cxは各ビンの中心の座標を指している
             float cy = (ph + 0.5) * bin_size_h + roi_start_h;
             float cx = (pw + 0.5) * bin_size_w + roi_start_w;
+            // biliear interpolateの計算をしやすくするため、(-0.5, -0.5)する
+            cy = max(cy - 0.5, 0.f);
+            cx = max(cx - 0.5, 0.f);
 
-            float p = cy - floor(cy);
-            float q = cx - floor(cx);
+            float p = fabs(cy - floor(cy));
+            float q = fabs(cx - floor(cx));
 
             int y1 = floor(cy);
             int x1 = floor(cx);
@@ -218,7 +212,7 @@ class ROIAlign2D(function.Function):
             // 各roi、各ビンに対して、もしこのカーネルが担当するfeature map上のピクセルが関与していた場合、
             // gradを加算する
             for (int roi_n = 0; roi_n < num_rois; ++roi_n) {
-                
+
                 // Skip if ROI's batch index doesn't match num
                 if (num != static_cast<int>(bottom_rois[roi_n * 5])) {
                     continue;
@@ -247,8 +241,8 @@ class ROIAlign2D(function.Function):
                 // Compute feasible set of pooled units that could have pooled
                 // this bottom unit
 
-                float roi_width = roi_end_w - roi_start_w;
-                float roi_height = roi_end_h - roi_start_h;
+                float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
+                float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
 
                 float bin_size_h = roi_height
                                / static_cast<float>(pooled_height);
@@ -258,11 +252,11 @@ class ROIAlign2D(function.Function):
                 // 各ビンに対して、feature map上のfloat精度のy, xを得る
                 for (int row=0; row<pooled_height; ++row) {
                     for (int col=0; col<pooled_width; ++col) {
-                        float cx = (col + 0.5) * bin_size_w + roi_start_w;
-                        float cy = (row + 0.5) * bin_size_h + roi_start_h;
+                        float cx = max((col + 0.5) * bin_size_w + roi_start_w - 0.5, 0.f);
+                        float cy = max((row + 0.5) * bin_size_h + roi_start_h - 0.5, 0.f);
                         // これを計算するために使った4近傍点に対して、gradを加算する
-                        float p = cy - floor(cy);
-                        float q = cx - floor(cx);
+                        float p = fabs(cy - floor(cy));
+                        float q = fabs(cx - floor(cx));
                         int x0 = max(min(static_cast<int>(floor(cx)), width-1), 0);
                         int y0 = max(min(static_cast<int>(floor(cy)), height-1), 0);
                         int x1 = max(min(static_cast<int>(floor(cx))+1, width-1), 0);

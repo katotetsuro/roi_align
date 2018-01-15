@@ -41,9 +41,6 @@ class ROIAlign2D(function.Function):
         # returned without having some of its values updated.
         top_data = numpy.zeros((n_rois, channels, self.outh, self.outw),
                                dtype=numpy.float32)
-        # 各ビンを計算するのに使ったfeature mapの座標(x,y)の配列
-        self.center_data = numpy.zeros((n_rois, 4, 2, self.outh, self.outw), numpy.int32)
-        self.weights = numpy.zeros((n_rois, 2, self.outh, self.outw), numpy.float32)
 
         for i_roi in six.moves.range(n_rois):
             idx, xmin, ymin, xmax, ymax = bottom_rois[i_roi]
@@ -51,21 +48,10 @@ class ROIAlign2D(function.Function):
             xmax = xmax * self.spatial_scale
             ymin = ymin * self.spatial_scale
             ymax = ymax * self.spatial_scale
-            roi_width = max(xmax - xmin + 1, 1)
-            roi_height = max(ymax - ymin + 1, 1)
+            roi_width = xmax - xmin
+            roi_height = ymax - ymin
             strideh = 1. * roi_height / self.outh
             stridew = 1. * roi_width / self.outw
-
-            #center_y = np.indices((self.outh, self.outw))
-            #center_y = (center_y + 0.5) * strideh + ymin
-            #center_x = (center_x + 0.5) * stridew + xmin
-            #centers = np.array((center_y, center_x))
-            #self.center_data[i_roi, :] = centers
-
-            #x00 = np.floor(centers).astype(np.int32)
-            #p, q = centers - x00
-            #x00[i_roi, 0, :, :
-
 
             for outh in six.moves.range(self.outh):
                 for outw in six.moves.range(self.outw):
@@ -73,23 +59,17 @@ class ROIAlign2D(function.Function):
                     cy = (outh + 0.5) * strideh + ymin
                     cx = (outw + 0.5) * stridew + xmin
 
-                    # adjacents_, (0,0),(0,1),(1,0),(1,1)的なもの
-                    # weights (1-p)*(1-q), (1-p)*q, p*(1-q), p*q 的なもの
-                    # だけどこの内積はけっこうちゃんと考えないとやばいな
-                    x00 = numpy.array((cy, cx), dtype=numpy.int32)
-                    p, q = numpy.array((cy, cx)) - x00
+                    x00 = numpy.array((cy, cx), dtype=numpy.float32)
+                    p, q = x00 - numpy.floor(x00)
                     bound = (height-1, width-1)
-                    x10 = numpy.maximum(x00 + (1,0), bound)
-                    x01 = numpy.maximum(x00 + (0, 1), bound)
-                    x11 = numpy.maximum(x00 + (1, 1), bound)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(numpy.int32)
+                    x1 = numpy.minimum(x00 + (1, 1), bound).astype(numpy.int32)
 
-                    roi_data = bottom_data[int(idx), :, x00[0], x00[1]] * (1-p)*(1-q) \
-                                + bottom_data[int(idx), :, x10[0], x10[1]] * p * (1-q) \
-                                + bottom_data[int(idx), :, x01[0], x01[1]] * (1-p) * q \
-                                + bottom_data[int(idx), :, x11[0], x11[1]] * p * q
+                    roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
+                                + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \
+                                + bottom_data[int(idx), :, x0[0], x1[1]] * (1-p) * q \
+                                + bottom_data[int(idx), :, x1[0], x1[1]] * p * q
                     top_data[i_roi, :, outh, outw] = roi_data
-                    self.center_data[i_roi,:, :, outh, outw] = numpy.vstack((x00, x10, x01, x11))
-                    self.weights[i_roi, :, outh, outw] = numpy.array((p,q))
         return top_data,
 
     def forward_gpu(self, inputs):
@@ -166,8 +146,8 @@ class ROIAlign2D(function.Function):
             xmax = xmax * self.spatial_scale
             ymin = ymin * self.spatial_scale
             ymax = ymax * self.spatial_scale
-            roi_width = max(xmax - xmin + 1, 1)
-            roi_height = max(ymax - ymin + 1, 1)
+            roi_width = xmax - xmin
+            roi_height = ymax - ymin
 
             strideh = float(roi_height) / float(self.outh)
             stridew = float(roi_width) / float(self.outw)
@@ -176,12 +156,19 @@ class ROIAlign2D(function.Function):
             _, c, rows, cols = gy[0].shape
             for y in range(rows):
                 for x in range(cols):
-                    x00, x10, x01, x11 = self.center_data[i_roi, :, :, y, x]
-                    p, q = self.weights[i_roi, :, y, x]
-                    bottom_delta[idx, :, x00[0], x00[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x10[0], x10[1]] += p*(1-q) * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x01[0], x01[1]] += (1-p)*q * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x11[0], x11[1]] += p*q * gy[0][i_roi, :, y, x]
+                    cy = (y + 0.5) * strideh + ymin
+                    cx = (x + 0.5) * stridew + xmin
+
+                    x00 = numpy.array((cy, cx), dtype=numpy.float32)
+                    p, q = x00 - numpy.floor(x00)
+                    bound = (height-1, width-1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0,0)).astype(numpy.int32)
+                    x1 = numpy.minimum(x00 + (1, 1), bound).astype(numpy.int32)
+
+                    bottom_delta[idx, :, x0[0], x0[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x1[0], x0[1]] += p*(1-q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x0[0], x1[1]] += (1-p)*q * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x1[0], x1[1]] += p*q * gy[0][i_roi, :, y, x]
 
         return bottom_delta, None
 

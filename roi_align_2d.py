@@ -146,21 +146,17 @@ class ROIAlign2D(function.Function):
             float p = cy - floor(cy);
             float q = cx - floor(cx);
 
-            int x00_y = floor(cy);
-            int x00_x = floor(cx);
-            int x10_y = min(x00_y + 1, height-1);
-            int x10_x = min(x00_x + 0, width-1);
-            int x01_y = min(x00_y + 0, height-1);
-            int x01_x = min(x00_x + 1, width-1);
-            int x11_y = min(x00_y + 1, height-1);
-            int x11_x = min(x00_x + 1, width-1);
+            int y1 = floor(cy);
+            int x1 = floor(cx);
+            int y2 = min(y1 + 1, height-1);
+            int x2 = min(x1 + 1, width-1);
 
             // このカーネルが処理するチャンネルへのオフセット
             int data_offset = (roi_batch_ind * channels + c) * height * width;
-            float val = bottom_data[data_offset + x00_y * width + x00_x] * (1-p) * (1-q);
-            val += bottom_data[data_offset + x10_y * width + x10_x] * p * (1-q);
-            val += bottom_data[data_offset + x01_y * width + x01_x] * (1-p) * q;
-            val += bottom_data[data_offset + x11_y * width + x11_x] * p * q;
+            float val = bottom_data[data_offset + y1 * width + x1] * (1-p) * (1-q);
+            val += bottom_data[data_offset + y2 * width + x1] * p * (1-q);
+            val += bottom_data[data_offset + y1 * width + x2] * (1-p) * q;
+            val += bottom_data[data_offset + y2 * width + x2] * p * q;
             top_data = val;
             ''', 'roi_align_2d_fwd'
         )(bottom_data, self.spatial_scale, channels, height, width,

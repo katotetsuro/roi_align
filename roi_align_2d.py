@@ -122,8 +122,8 @@ class ROIAlign2D(function.Function):
             float roi_end_w = bottom_rois[num * 5 + 3] * spatial_scale;
             float roi_end_h = bottom_rois[num * 5 + 4] * spatial_scale;
 
-            float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
-            float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
+            float roi_width = roi_end_w - roi_start_w;
+            float roi_height = roi_end_h - roi_start_h;
             float bin_size_h = roi_height
                            / static_cast<float>(pooled_height);
             float bin_size_w = roi_width
@@ -133,15 +133,10 @@ class ROIAlign2D(function.Function):
             // 更にいうと、cy,cxは各ビンの中心の座標を指している
             float cy = (ph + 0.5) * bin_size_h + roi_start_h;
             float cx = (pw + 0.5) * bin_size_w + roi_start_w;
-            // biliear interpolateの計算をしやすくするため、(-0.5, -0.5)する
-            cy = max(cy - 0.5, 0.f);
-            cx = max(cx - 0.5, 0.f);
-
             float p = fabs(cy - floor(cy));
             float q = fabs(cx - floor(cx));
-
-            int y1 = floor(cy);
-            int x1 = floor(cx);
+            int y1 = max(static_cast<int>(floor(cy-0.5)), 0);
+            int x1 = max(static_cast<int>(floor(cx-0.5)), 0);
             int y2 = min(y1 + 1, height-1);
             int x2 = min(x1 + 1, width-1);
 
@@ -241,8 +236,8 @@ class ROIAlign2D(function.Function):
                 // Compute feasible set of pooled units that could have pooled
                 // this bottom unit
 
-                float roi_width = max(roi_end_w - roi_start_w + 1, 1.f);
-                float roi_height = max(roi_end_h - roi_start_h + 1, 1.f);
+                float roi_width = roi_end_w - roi_start_w;
+                float roi_height = roi_end_h - roi_start_h;
 
                 float bin_size_h = roi_height
                                / static_cast<float>(pooled_height);
@@ -252,15 +247,15 @@ class ROIAlign2D(function.Function):
                 // 各ビンに対して、feature map上のfloat精度のy, xを得る
                 for (int row=0; row<pooled_height; ++row) {
                     for (int col=0; col<pooled_width; ++col) {
-                        float cx = max((col + 0.5) * bin_size_w + roi_start_w - 0.5, 0.f);
-                        float cy = max((row + 0.5) * bin_size_h + roi_start_h - 0.5, 0.f);
+                        float cx = min(max((col + 0.5) * bin_size_w + roi_start_w, 0.f), width-1.f);
+                        float cy = min(max((row + 0.5) * bin_size_h + roi_start_h, 0.f), height-1.f);
                         // これを計算するために使った4近傍点に対して、gradを加算する
                         float p = fabs(cy - floor(cy));
                         float q = fabs(cx - floor(cx));
-                        int x0 = max(min(static_cast<int>(floor(cx)), width-1), 0);
-                        int y0 = max(min(static_cast<int>(floor(cy)), height-1), 0);
-                        int x1 = max(min(static_cast<int>(floor(cx))+1, width-1), 0);
-                        int y1 = max(min(static_cast<int>(floor(cy))+1, height-1), 0);
+                        int x0 = max(min(static_cast<int>(floor(cx-0.5)), width-1), 0);
+                        int y0 = max(min(static_cast<int>(floor(cy-0.5)), height-1), 0);
+                        int x1 = max(min(static_cast<int>(floor(cx-0.5))+1, width-1), 0);
+                        int y1 = max(min(static_cast<int>(floor(cy-0.5))+1, height-1), 0);
                         float g = top_diff[offset + row*pooled_width + col];
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;

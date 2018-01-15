@@ -63,7 +63,7 @@ class ROIAlign2D(function.Function):
                     p, q = x00 - numpy.floor(x00)
                     bound = (height-1, width-1)
                     x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(numpy.int32)
-                    x1 = numpy.minimum(x00 + (1, 1), bound).astype(numpy.int32)
+                    x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
                     roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
                                 + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \
@@ -163,7 +163,7 @@ class ROIAlign2D(function.Function):
                     p, q = x00 - numpy.floor(x00)
                     bound = (height-1, width-1)
                     x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0,0)).astype(numpy.int32)
-                    x1 = numpy.minimum(x00 + (1, 1), bound).astype(numpy.int32)
+                    x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
                     bottom_delta[idx, :, x0[0], x0[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
                     bottom_delta[idx, :, x1[0], x0[1]] += p*(1-q) * gy[0][i_roi, :, y, x]

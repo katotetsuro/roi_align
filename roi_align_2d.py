@@ -219,6 +219,13 @@ class ROIAlign2D(function.Function):
                 float roi_width = roi_end_w - roi_start_w;
                 float roi_height = roi_end_h - roi_start_h;
 
+
+                // Skip if ROI doesn't include (h, w)
+                const bool in_roi = (w >= roi_start_w-1 && w <= roi_end_w+1 && h >= roi_start_h-1 && h <= roi_end_h+1);
+                if (!in_roi) {
+                    continue;
+                }
+
                 float bin_size_h = roi_height
                                / static_cast<float>(pooled_height);
                 float bin_size_w = roi_width

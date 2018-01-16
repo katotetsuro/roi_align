@@ -239,12 +239,15 @@ class ROIAlign2D(function.Function):
                         float g = top_diff[offset + row*pooled_width + col];
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;
+                            continue;
                         }
                         if (x1 == w && y0 == h) {
                             gradient += (1-p)*q * g;
+                            continue;
                         }
                         if (x0 == w && y1 == h) {
                             gradient += p*(1-q) * g;
+                            continue;
                         }
                         if (x1 == w && y1 == h) {
                             gradient += p * q * g;

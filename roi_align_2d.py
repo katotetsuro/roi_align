@@ -113,8 +113,8 @@ class ROIAlign2D(function.Function):
             // 更にいうと、cy,cxは各ビンの中心の座標を指している
             float cy = (ph + 0.5) * bin_size_h + roi_start_h;
             float cx = (pw + 0.5) * bin_size_w + roi_start_w;
-            float p = fabs(cy - floor(cy));
-            float q = fabs(cx - floor(cx));
+            float p = cy - floor(cy);
+            float q = cx - floor(cx);
             int y1 = max(static_cast<int>(floor(cy-0.5)), 0);
             int x1 = max(static_cast<int>(floor(cx-0.5)), 0);
             int y2 = min(y1 + 1, height-1);

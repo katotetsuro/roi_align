@@ -12,7 +12,6 @@ from chainer.utils import type_check
 
 
 class ROIAlign2D(function.Function):
-
     """RoI align over a set of 2d planes."""
 
     def __init__(self, outh, outw, spatial_scale):
@@ -39,8 +38,8 @@ class ROIAlign2D(function.Function):
         n_rois = bottom_rois.shape[0]
         # `numpy.zeros` needs to be used because the arrays can be
         # returned without having some of its values updated.
-        top_data = numpy.zeros((n_rois, channels, self.outh, self.outw),
-                               dtype=numpy.float32)
+        top_data = numpy.zeros(
+            (n_rois, channels, self.outh, self.outw), dtype=numpy.float32)
 
         for i_roi in six.moves.range(n_rois):
             idx, xmin, ymin, xmax, ymax = bottom_rois[i_roi]
@@ -61,8 +60,9 @@ class ROIAlign2D(function.Function):
 
                     x00 = numpy.array((cy, cx), dtype=numpy.float32)
                     p, q = x00 - numpy.floor(x00)
-                    bound = (height-1, width-1)
-                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(numpy.int32)
+                    bound = (height - 1, width - 1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(
+                        numpy.int32)
                     x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
                     roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
@@ -80,16 +80,13 @@ class ROIAlign2D(function.Function):
         bottom_data, bottom_rois = inputs
         channels, height, width = bottom_data.shape[1:]
         n_rois = bottom_rois.shape[0]
-        top_data = cuda.cupy.empty((n_rois, channels, self.outh,
-                                    self.outw), dtype=numpy.float32)
-        cuda.cupy.ElementwiseKernel(
-            '''
+        top_data = cuda.cupy.empty(
+            (n_rois, channels, self.outh, self.outw), dtype=numpy.float32)
+        cuda.cupy.ElementwiseKernel('''
             raw float32 bottom_data, float32 spatial_scale, int32 channels,
             int32 height, int32 width, int32 pooled_height, int32 pooled_width,
             raw float32 bottom_rois
-            ''',
-            'float32 top_data',
-            '''
+            ''', 'float32 top_data', '''
             // pos in output filter
             int pw = i % pooled_width;
             int ph = (i / pooled_width) % pooled_height;
@@ -127,9 +124,9 @@ class ROIAlign2D(function.Function):
             val += bottom_data[data_offset + y1 * width + x2] * (1-p) * q;
             val += bottom_data[data_offset + y2 * width + x2] * p * q;
             top_data = val;
-            ''', 'roi_align_2d_fwd'
-        )(bottom_data, self.spatial_scale, channels, height, width,
-          self.outh, self.outw, bottom_rois, top_data)
+            ''', 'roi_align_2d_fwd')(bottom_data, self.spatial_scale, channels,
+                                     height, width, self.outh, self.outw,
+                                     bottom_rois, top_data)
 
         return top_data,
 
@@ -161,14 +158,19 @@ class ROIAlign2D(function.Function):
 
                     x00 = numpy.array((cy, cx), dtype=numpy.float32)
                     p, q = x00 - numpy.floor(x00)
-                    bound = (height-1, width-1)
-                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0,0)).astype(numpy.int32)
+                    bound = (height - 1, width - 1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(
+                        numpy.int32)
                     x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
-                    bottom_delta[idx, :, x0[0], x0[1]] += (1-p)*(1-q) * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x1[0], x0[1]] += p*(1-q) * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x0[0], x1[1]] += (1-p)*q * gy[0][i_roi, :, y, x]
-                    bottom_delta[idx, :, x1[0], x1[1]] += p*q * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x0[0], x0[1]] += (1 - p) * (
+                        1 - q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x1[0], x0[1]] += p * (
+                        1 - q) * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x0[0], x1[1]] += (
+                        1 - p) * q * gy[0][i_roi, :, y, x]
+                    bottom_delta[idx, :, x1[0], x1[1]] += p * q * gy[0][
+                        i_roi, :, y, x]
 
         return bottom_delta, None
 
@@ -176,14 +178,11 @@ class ROIAlign2D(function.Function):
         bottom_rois = inputs[1]
         channels, height, width = self._bottom_data_shape[1:]
         bottom_diff = cuda.cupy.zeros(self._bottom_data_shape, numpy.float32)
-        cuda.cupy.ElementwiseKernel(
-            '''
+        cuda.cupy.ElementwiseKernel('''
             raw float32 top_diff, int32 num_rois,
             float32 spatial_scale, int32 channels, int32 height, int32 width,
             int32 pooled_height, int32 pooled_width, raw float32 bottom_rois
-            ''',
-            'float32 bottom_diff',
-            '''
+            ''', 'float32 bottom_diff', '''
             int w = i % width;
             int h = (i / width) % height;
             int c = (i / (width * height)) % channels;
@@ -263,10 +262,9 @@ class ROIAlign2D(function.Function):
                 }
             }
             bottom_diff = gradient;
-            ''', 'roi_align_2d_bwd'
-        )(gy[0], bottom_rois.shape[0], self.spatial_scale,
-          channels, height, width, self.outh, self.outw,
-          bottom_rois, bottom_diff)
+            ''', 'roi_align_2d_bwd')(
+            gy[0], bottom_rois.shape[0], self.spatial_scale, channels, height,
+            width, self.outh, self.outw, bottom_rois, bottom_diff)
 
         return bottom_diff, None
 

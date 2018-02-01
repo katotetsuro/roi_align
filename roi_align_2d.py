@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Mask R-CNN
 # Kaiming He, Georgia Gkioxari, Piotr Dollár, Ross Girshick
 # https://arxiv.org/abs/1703.06870

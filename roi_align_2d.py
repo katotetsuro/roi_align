@@ -48,8 +48,8 @@ class ROIAlign2D(function.Function):
             xmax = xmax * self.spatial_scale
             ymin = ymin * self.spatial_scale
             ymax = ymax * self.spatial_scale
-            roi_width = xmax - xmin
-            roi_height = ymax - ymin
+            roi_width = max(xmax - xmin, 1.)
+            roi_height = max(ymax - ymin, 1.)
             strideh = 1. * roi_height / self.outh
             stridew = 1. * roi_width / self.outw
 
@@ -61,10 +61,11 @@ class ROIAlign2D(function.Function):
 
                     x00 = numpy.array((cy, cx), dtype=numpy.float32)
                     p, q = x00 - numpy.floor(x00)
-                    bound = (height - 1, width - 1)
-                    x0 = numpy.maximum(numpy.floor(x00 - 0.5), (0, 0)).astype(
-                        numpy.int32)
+                    bound = (height-1, width-1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.0), (0, 0)).astype(numpy.int32)
                     x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
+
+                    print('({}, {}) を計算するのに、featuremapの({}, {}) を参照し、 ({}, {}), ({}, {}), {}, {}'.format(outw, outh, cx, cy, x0[0], x0[1], x1[0], x1[1], q, p))
 
                     roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
                                 + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \

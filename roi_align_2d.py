@@ -61,8 +61,9 @@ class ROIAlign2D(function.Function):
 
                     x00 = numpy.array((cy, cx), dtype=numpy.float32)
                     p, q = x00 - numpy.floor(x00)
-                    bound = (height-1, width-1)
-                    x0 = numpy.maximum(numpy.floor(x00 - 0.0), (0, 0)).astype(numpy.int32)
+                    bound = (height - 1, width - 1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.0), (0, 0)).astype(
+                        numpy.int32)
                     x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
                     #print('({}, {}) を計算するのに、featuremapの({}, {}) を参照し、 ({}, {}), ({}, {}), {}, {}'.format(outw, outh, cx, cy, x0[0], x0[1], x1[0], x1[1], q, p))
@@ -160,8 +161,9 @@ class ROIAlign2D(function.Function):
 
                     x00 = numpy.array((cy, cx), dtype=numpy.float32)
                     p, q = x00 - numpy.floor(x00)
-                    bound = (height-1, width-1)
-                    x0 = numpy.maximum(numpy.floor(x00 - 0.0), (0,0)).astype(numpy.int32)
+                    bound = (height - 1, width - 1)
+                    x0 = numpy.maximum(numpy.floor(x00 - 0.0), (0, 0)).astype(
+                        numpy.int32)
                     x1 = numpy.minimum(x0 + (1, 1), bound).astype(numpy.int32)
 
                     bottom_delta[idx, :, x0[0], x0[1]] += (1 - p) * (

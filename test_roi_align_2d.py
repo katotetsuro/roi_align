@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import unittest
 
 import numpy
@@ -94,6 +95,37 @@ class TestROIAlign2D(unittest.TestCase):
     def test_backward_gpu(self):
         self.check_backward(
             cuda.to_gpu(self.x), cuda.to_gpu(self.rois), cuda.to_gpu(self.gy))
+
+    def test_caffe2_equal(self):
+        try:
+            from caffe2.python import core, workspace
+        except:
+            assert False
+
+        op = core.CreateOperator(
+            "RoIAlign", ["x", "rois"], ["y"],
+            order="NCHW",
+            pooled_h=self.outh,
+            pooled_w=self.outw,
+            spatial_scale=self.spatial_scale,
+            sampling_ratio=1)
+        workspace.ResetWorkspace()
+        workspace.FeedBlob("x", self.x)
+        workspace.FeedBlob("rois", self.rois)
+        workspace.RunOperatorOnce(op)
+        y_caffe = workspace.FetchBlob("y")
+
+        x = chainer.Variable(self.x)
+        rois = chainer.Variable(self.rois)
+        y = roi_align_2d(
+            x,
+            rois,
+            outh=self.outh,
+            outw=self.outw,
+            spatial_scale=self.spatial_scale)
+        self.assertEqual(y.data.dtype, numpy.float32)
+        y_data = cuda.to_cpu(y.data)
+        gradient_check.assert_allclose(y_caffe, y_data)
 
 
 testing.run_module(__name__, __file__)

@@ -241,8 +241,8 @@ class ROIAlign2D(function.Function):
                         float q = cx - floor(cx);
                         int x0 = max(min(static_cast<int>(cx), width-1), 0);
                         int y0 = max(min(static_cast<int>(cy), height-1), 0);
-                        int x1 = max(min(static_cast<int>(cx)+1, width-1), 0);
-                        int y1 = max(min(static_cast<int>(cy)+1, height-1), 0);
+                        int x1 = min(x0+1, width-1);
+                        int y1 = min(y0+1, height-1);
                         float g = top_diff[offset + row*pooled_width + col];
                         if (x0 == w && y0 == h) {
                             gradient += (1-p)*(1-q) * g;

@@ -243,21 +243,20 @@ class ROIAlign2D(function.Function):
                         int y0 = max(min(static_cast<int>(cy), height-1), 0);
                         int x1 = min(x0+1, width-1);
                         int y1 = min(y0+1, height-1);
-                        float g = top_diff[offset + row*pooled_width + col];
                         if (x0 == w && y0 == h) {
-                            gradient += (1-p)*(1-q) * g;
+                            gradient += (1-p)*(1-q) * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x1 == w && y0 == h) {
-                            gradient += (1-p)*q * g;
+                            gradient += (1-p)*q * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x0 == w && y1 == h) {
-                            gradient += p*(1-q) * g;
+                            gradient += p*(1-q) * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x1 == w && y1 == h) {
-                            gradient += p * q * g;
+                            gradient += p * q * top_diff[offset + row*pooled_width + col];
                         }
                     }
                 }

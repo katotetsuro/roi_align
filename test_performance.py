@@ -8,6 +8,7 @@ def pooling_forward(x, roi, outh, outw, spatial_scale):
     y = F.roi_pooling_2d(x, roi, outh, outw, spatial_scale)
     return y
 
+
 def align_forward(x, roi, outh, outw, spatial_scale):
     y = roi_align_2d(x, roi, outh, outw, spatial_scale)
     return y
@@ -22,13 +23,17 @@ if __name__ == '__main__':
     outw = 14
     spatial_scale = 1.
     n = 1000
-    timeit.timeit(lambda :pooling_forward(x, roi, outh, outw, spatial_scale), number=1)
-    print(timeit.timeit(lambda :pooling_forward(x, roi, outh, outw, spatial_scale), number=n))
+    timeit.timeit(lambda: pooling_forward(
+        x, roi, outh, outw, spatial_scale), number=1)
+    print(timeit.timeit(lambda: pooling_forward(
+        x, roi, outh, outw, spatial_scale), number=n))
     # compile
-    timeit.timeit(lambda :align_forward(x, roi, outh, outw, spatial_scale), number=1)
-    print(timeit.timeit(lambda :align_forward(x, roi, outh, outw, spatial_scale), number=n))
+    timeit.timeit(lambda: align_forward(
+        x, roi, outh, outw, spatial_scale), number=1)
+    print(timeit.timeit(lambda: align_forward(
+        x, roi, outh, outw, spatial_scale), number=n))
 
     y = pooling_forward(x, roi, outh, outw, spatial_scale)
-    print(timeit.timeit(lambda :y.backward(), number=n))
+    print(timeit.timeit(lambda: y.backward(), number=n))
     y = align_forward(x, roi, outh, outw, spatial_scale)
-    print(timeit.timeit(lambda :y.backward(), number=n))
+    print(timeit.timeit(lambda: y.backward(), number=n))

@@ -69,9 +69,10 @@ class ROIAlign2D(function.Function):
                     #print('({}, {}) を計算するのに、featuremapの({}, {}) を参照し、 ({}, {}), ({}, {}), {}, {}'.format(outw, outh, cx, cy, x0[0], x0[1], x1[0], x1[1], q, p))
 
                     roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
-                                + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \
-                                + bottom_data[int(idx), :, x0[0], x1[1]] * (1-p) * q \
-                                + bottom_data[int(idx), :, x1[0], x1[1]] * p * q
+                        + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \
+                        + bottom_data[int(idx), :, x0[0], x1[1]] * (1-p) * q \
+                        + bottom_data[int(idx), :,
+                                      x1[0], x1[1]] * p * q
                     top_data[i_roi, :, outh, outw] = roi_data
         return top_data,
 
@@ -152,7 +153,7 @@ class ROIAlign2D(function.Function):
             strideh = float(roi_height) / float(self.outh)
             stridew = float(roi_width) / float(self.outw)
 
-            #gyの各成分に対して、対応する4近傍点にgradを加算する
+            # gyの各成分に対して、対応する4近傍点にgradを加算する
             _, c, rows, cols = gy[0].shape
             for y in range(rows):
                 for x in range(cols):

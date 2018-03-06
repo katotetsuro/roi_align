@@ -77,7 +77,7 @@ class ROIAlign2D(function.Function):
 
     def forward_gpu(self, inputs):
         # ROIの情報だけは取っておく -> backwardのinputsに来るからいらないのか？
-        #self.retain_inputs((1,))
+        self.retain_inputs((1,))
 
         self._bottom_data_shape = inputs[0].shape
         bottom_data, bottom_rois = inputs
@@ -217,15 +217,13 @@ class ROIAlign2D(function.Function):
 
                 // Compute feasible set of pooled units that could have pooled
                 // this bottom unit
-
                 float roi_width = max(roi_end_w - roi_start_w, 1.f);
                 float roi_height = max(roi_end_h - roi_start_h, 1.f);
 
-
                 // Skip if ROI doesn't include (h, w)
-                const bool in_roi = (w >= roi_start_w-1 && w <= roi_end_w+1 && h >= roi_start_h-1 && h <= roi_end_h+1);
+                const bool in_roi = (roi_start_w-2<=w && w<=roi_end_w+2 && roi_start_h-2<=h && h<=roi_end_h+2);
                 if (!in_roi) {
-                    //continue;
+                    continue;
                 }
 
                 float bin_size_h = roi_height
@@ -236,32 +234,29 @@ class ROIAlign2D(function.Function):
                 // 各ビンに対して、feature map上のfloat精度のy, xを得る
                 for (int row=0; row<pooled_height; ++row) {
                     for (int col=0; col<pooled_width; ++col) {
-                        //float cx = min(max((col + 0.5) * bin_size_w + roi_start_w, 0.f), width-1.f);
-                        //float cy = min(max((row + 0.5) * bin_size_h + roi_start_h, 0.f), height-1.f);
                         float cx = (col + 0.5f) * bin_size_w + roi_start_w;
                         float cy = (row + 0.5f) * bin_size_h + roi_start_h;
                         // これを計算するために使った4近傍点に対して、gradを加算する
                         float p = cy - floor(cy);
                         float q = cx - floor(cx);
-                        int x0 = max(min(static_cast<int>(floor(cx-0.0)), width-1), 0);
-                        int y0 = max(min(static_cast<int>(floor(cy-0.0)), height-1), 0);
-                        int x1 = max(min(static_cast<int>(floor(cx-0.0))+1, width-1), 0);
-                        int y1 = max(min(static_cast<int>(floor(cy-0.0))+1, height-1), 0);
-                        float g = top_diff[offset + row*pooled_width + col];
+                        int x0 = max(min(static_cast<int>(cx), width-1), 0);
+                        int y0 = max(min(static_cast<int>(cy), height-1), 0);
+                        int x1 = min(x0+1, width-1);
+                        int y1 = min(y0+1, height-1);
                         if (x0 == w && y0 == h) {
-                            gradient += (1-p)*(1-q) * g;
+                            gradient += (1-p)*(1-q) * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x1 == w && y0 == h) {
-                            gradient += (1-p)*q * g;
+                            gradient += (1-p)*q * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x0 == w && y1 == h) {
-                            gradient += p*(1-q) * g;
+                            gradient += p*(1-q) * top_diff[offset + row*pooled_width + col];
                             continue;
                         }
                         if (x1 == w && y1 == h) {
-                            gradient += p * q * g;
+                            gradient += p * q * top_diff[offset + row*pooled_width + col];
                         }
                     }
                 }

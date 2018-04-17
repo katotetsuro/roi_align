@@ -31,7 +31,19 @@ class ROIAlign2D(function.Function):
             roi_type.shape[1] == 5,
         )
 
+    def forward_cpu2(self, inputs):
+        import caffe2_roi_align
+        print('use c++ version')
+        return caffe2_roi_align.forward(*inputs, self.outh, self.outw, self.spatial_scale),
+
     def forward_cpu(self, inputs):
+        try:
+            import caffe2_roi_align
+            return caffe2_roi_align.forward(
+                *inputs, self.outh, self.outw, self.spatial_scale),
+        except ImportError:
+            print('use numpy version')
+
         self._bottom_data_shape = inputs[0].shape
 
         bottom_data, bottom_rois = inputs
@@ -68,9 +80,9 @@ class ROIAlign2D(function.Function):
 
                     #print('({}, {}) を計算するのに、featuremapの({}, {}) を参照し、 ({}, {}), ({}, {}), {}, {}'.format(outw, outh, cx, cy, x0[0], x0[1], x1[0], x1[1], q, p))
 
-                    roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1-p)*(1-q) \
-                        + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1-q) \
-                        + bottom_data[int(idx), :, x0[0], x1[1]] * (1-p) * q \
+                    roi_data = bottom_data[int(idx), :, x0[0], x0[1]] * (1 - p) * (1 - q) \
+                        + bottom_data[int(idx), :, x1[0], x0[1]] * p * (1 - q) \
+                        + bottom_data[int(idx), :, x0[0], x1[1]] * (1 - p) * q \
                         + bottom_data[int(idx), :,
                                       x1[0], x1[1]] * p * q
                     top_data[i_roi, :, outh, outw] = roi_data

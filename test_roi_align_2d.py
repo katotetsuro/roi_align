@@ -16,16 +16,18 @@ from roi_align_2d import ROIAlign2D, roi_align_2d
 class TestROIAlign2D(unittest.TestCase):
     def setUp(self):
         N = 3
-        n_channels = 3
+        n_channels = 256
         self.x = numpy.arange(
             N * n_channels * 12 * 8, dtype=numpy.float32).reshape(
                 (N, n_channels, 12, 8))
         numpy.random.shuffle(self.x)
         self.x = 2 * self.x / self.x.size - 1
+        self.x = self.x.astype(numpy.float32)
         self.rois = numpy.array(
             [[0, 1, 1, 6, 6], [2, 6, 2, 7, 11], [1, 3, 1, 5, 10],
              [0, 3, 3, 3, 3]],
             dtype=numpy.float32)
+        self.rois = numpy.tile(self.rois, (15, 1))
         n_rois = self.rois.shape[0]
         self.outh, self.outw = 5, 7
         self.spatial_scale = 0.6
@@ -126,6 +128,29 @@ class TestROIAlign2D(unittest.TestCase):
         self.assertEqual(y.data.dtype, numpy.float32)
         y_data = cuda.to_cpu(y.data)
         gradient_check.assert_allclose(y_caffe, y_data)
+
+    def test_forward_cpu_1_2_equal(self):
+        # cpu
+        x = chainer.Variable(self.x)
+        rois = chainer.Variable(self.rois)
+        import time
+        start = time.time()
+        y1 = roi_align_2d(
+            x,
+            rois,
+            outh=self.outh,
+            outw=self.outw,
+            spatial_scale=self.spatial_scale)
+        elapsed_time = time.time() - start
+        print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
+
+        start = time.time()
+        y2, = ROIAlign2D(self.outh, self.outw,
+                         self.spatial_scale).forward_cpu2((self.x, self.rois))
+        elapsed_time = time.time() - start
+        print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
+
+        testing.assert_allclose(y1.data, y2.data)
 
 
 testing.run_module(__name__, __file__)

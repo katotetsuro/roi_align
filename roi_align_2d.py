@@ -37,14 +37,13 @@ class ROIAlign2D(function.Function):
         return caffe2_roi_align.forward(*inputs, self.outh, self.outw, self.spatial_scale),
 
     def forward_cpu(self, inputs):
+        self._bottom_data_shape = inputs[0].shape
         try:
             import caffe2_roi_align
             return caffe2_roi_align.forward(
                 *inputs, self.outh, self.outw, self.spatial_scale),
         except ImportError:
-            print('use numpy version')
-
-        self._bottom_data_shape = inputs[0].shape
+            pass
 
         bottom_data, bottom_rois = inputs
         channels, height, width = bottom_data.shape[1:]
